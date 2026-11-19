@@ -71,6 +71,7 @@ export default function LobbyPage() {
   const [userId, setUserId] = useState('demo-user-cba');
   const [userName, setUserName] = useState('Jugador');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [balanceArs, setBalanceArs] = useState(0);
   const [lockedArs, setLockedArs] = useState(0);
   const [bankSettings, setBankSettings] = useState({
@@ -175,6 +176,17 @@ export default function LobbyPage() {
           setLockedArs(Number(wallet.locked_ars));
         }
 
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('is_admin, display_name')
+          .eq('id', data.user.id)
+          .single();
+
+        if (profile) {
+          setIsAdmin(Boolean(profile.is_admin));
+          if (profile.display_name) setUserName(profile.display_name);
+        }
+
         // Reconexión automática si el jugador tiene una partida activa (<45s)
         const { data: activeSeat } = await supabase
           .from('match_players')
@@ -259,6 +271,16 @@ export default function LobbyPage() {
       setUserName(res.data.user.email?.split('@')[0] || 'Jugador');
       setIsLoggedIn(true);
       setAuthModal(false);
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_admin, display_name')
+        .eq('id', res.data.user.id)
+        .single();
+      if (profile) {
+        setIsAdmin(Boolean(profile.is_admin));
+        if (profile.display_name) setUserName(profile.display_name);
+      }
     }
   };
 
@@ -267,6 +289,7 @@ export default function LobbyPage() {
     const supabase = createClient();
     await supabase.auth.signOut();
     setIsLoggedIn(false);
+    setIsAdmin(false);
     setUserId('demo-user-cba');
     setUserName('Jugador');
   };
@@ -308,13 +331,15 @@ export default function LobbyPage() {
           <Wordmark size="md" />
 
           <div className="flex items-center gap-2">
-            <Link
-              href="/admin"
-              className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#164A34]/80 hover:bg-[#1D5C41] border border-white/[0.08] text-[#E4E9E6] text-xs font-semibold transition ease-fluid"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-[#F2D283]" />
-              Admin
-            </Link>
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#164A34]/80 hover:bg-[#1D5C41] border border-[#C9A24B]/50 text-[#F2D283] text-xs font-semibold transition ease-fluid"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-[#F2D283]" />
+                Panel Admin
+              </Link>
+            )}
 
             {isLoggedIn ? (
               <button
