@@ -259,7 +259,14 @@ export default function LobbyPage() {
     setAuthError(null);
     const supabase = createClient();
     const res = isSignUp
-      ? await supabase.auth.signUp({ email, password })
+      ? await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo:
+              typeof window !== 'undefined' ? window.location.origin : undefined,
+          },
+        })
       : await supabase.auth.signInWithPassword({ email, password });
 
     if (res.error) {
