@@ -74,7 +74,7 @@ export default function LobbyPage() {
   const [balanceArs, setBalanceArs] = useState(0);
   const [lockedArs, setLockedArs] = useState(0);
   const [bankSettings, setBankSettings] = useState({
-    bank_alias: 'jesus2210',
+    bank_alias: 'jesus2210.dolarapp',
     bank_cvu: '0000003100084920192837',
     bank_holder: 'Vale Cuatro S.R.L.',
   });
@@ -316,28 +316,22 @@ export default function LobbyPage() {
               Admin
             </Link>
 
-            {supabaseReady ? (
-              isLoggedIn ? (
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-white hover:bg-[#F5F7F6] text-[#0E3324] text-xs font-bold transition"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  {userName}
-                </button>
-              ) : (
-                <button
-                  onClick={() => setAuthModal(true)}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-white hover:bg-[#F5F7F6] text-[#0E3324] text-xs font-bold shadow-sm transition"
-                >
-                  <LogIn className="w-3.5 h-3.5" />
-                  Ingresar
-                </button>
-              )
+            {isLoggedIn ? (
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-white hover:bg-[#F5F7F6] text-[#0E3324] text-xs font-bold transition"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                {userName}
+              </button>
             ) : (
-              <span className="px-3.5 py-1.5 rounded-full bg-[#164A34]/80 border border-white/[0.08] text-[#F2D283] text-xs font-semibold">
-                Modo Demo
-              </span>
+              <button
+                onClick={() => setAuthModal(true)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-white hover:bg-[#F5F7F6] text-[#0E3324] text-xs font-bold shadow-sm transition"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                Ingresar
+              </button>
             )}
           </div>
         </div>

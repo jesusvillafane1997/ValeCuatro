@@ -44,7 +44,7 @@ export function TransferModal({
   gameMode,
   userId,
   userName,
-  bankAlias = 'jesus2210',
+  bankAlias = 'jesus2210.dolarapp',
   bankCvu = '0000003100084920192837',
   bankHolder = 'Vale Cuatro S.R.L.',
   onApprovedPlay,
