@@ -84,6 +84,7 @@ export default function LobbyPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
 
   const supabaseReady = isSupabaseConfigured();
 
@@ -250,13 +251,33 @@ export default function LobbyPage() {
       )
       .subscribe();
 
+    const walletChannel = supabase
+      .channel('my-wallet-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'wallets',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const w = payload.new as { balance_ars?: number; locked_ars?: number };
+          if (w.balance_ars !== undefined) setBalanceArs(Number(w.balance_ars));
+          if (w.locked_ars !== undefined) setLockedArs(Number(w.locked_ars));
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(queueChannel);
+      supabase.removeChannel(walletChannel);
     };
   }, [supabaseReady, userId]);
 
   const handleAuth = async (isSignUp: boolean) => {
     setAuthError(null);
+    setAuthNotice(null);
     const supabase = createClient();
     const res = isSignUp
       ? await supabase.auth.signUp({
@@ -271,6 +292,10 @@ export default function LobbyPage() {
 
     if (res.error) {
       setAuthError(res.error.message);
+      return;
+    }
+    if (isSignUp && res.data.user && !res.data.session) {
+      setAuthNotice('¡Cuenta creada! Revisá tu email para confirmarla y luego iniciá sesión.');
       return;
     }
     if (res.data.user) {
@@ -712,6 +737,7 @@ export default function LobbyPage() {
               className="w-full px-4 py-3 rounded-2xl bg-white text-[#1A1D1B] text-sm outline-none"
             />
             {authError && <p className="text-xs text-rose-200 font-medium">{authError}</p>}
+            {authNotice && <p className="text-xs text-[#F2D283] font-medium">{authNotice}</p>}
             <div className="flex gap-2">
               <button
                 onClick={() => handleAuth(false)}

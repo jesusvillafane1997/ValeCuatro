@@ -5,7 +5,7 @@ import {
   ServerMatchAction,
   validateAndApplyServerAction,
 } from '@/lib/truco/server-engine';
-import { TrucoGameState } from '@/lib/truco/types';
+import { Card, TrucoGameState } from '@/lib/truco/types';
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,31 +28,35 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
     }
 
-    // Leer estado público + manos privadas del servidor
-    const { data: match, error: matchErr } = await supabase
-      .from('matches')
-      .select('id, game_state, turn_expires_at, status')
-      .eq('id', body.matchId)
-      .single();
+    const { data: ctx, error: ctxErr } = await supabase.rpc('server_get_match_context', {
+      p_match_id: body.matchId,
+    });
 
-    if (matchErr || !match) {
-      return NextResponse.json({ error: 'Mesa no encontrada.' }, { status: 404 });
+    if (ctxErr || !ctx) {
+      return NextResponse.json(
+        { error: ctxErr?.message || 'Mesa no encontrada.' },
+        { status: 404 }
+      );
     }
 
-    if (match.status === 'completed' || match.status === 'finished') {
+    const context = ctx as {
+      status: string;
+      game_state: TrucoGameState;
+      turn_expires_at: string | null;
+      hands: {
+        player_id: string;
+        cards: Card[];
+        envido_points: number;
+        has_flor: boolean;
+      }[];
+    };
+
+    if (context.status === 'completed' || context.status === 'finished') {
       return NextResponse.json({ error: 'La partida ya finalizó.' }, { status: 409 });
     }
 
-    const publicState = match.game_state as TrucoGameState;
-
-    // Reconstruir manos privadas desde match_hands solo en el servidor
-    const { data: hands } = await supabase
-      .from('match_hands')
-      .select('player_id, cards, envido_points, has_flor')
-      .eq('match_id', body.matchId);
-
-    const hydratedPlayers = publicState.players.map((p) => {
-      const h = hands?.find((row) => row.player_id === p.id);
+    const hydratedPlayers = context.game_state.players.map((p) => {
+      const h = context.hands.find((row) => row.player_id === p.id);
       return h
         ? {
             ...p,
@@ -64,7 +68,7 @@ export async function POST(req: NextRequest) {
     });
 
     const fullState: TrucoGameState = {
-      ...publicState,
+      ...context.game_state,
       players: hydratedPlayers,
     };
 
@@ -72,7 +76,7 @@ export async function POST(req: NextRequest) {
       state: fullState,
       actorUserId: user.id,
       action: body.action,
-      turnExpiresAt: match.turn_expires_at,
+      turnExpiresAt: context.turn_expires_at,
     });
 
     if (result.error) {
@@ -81,32 +85,23 @@ export async function POST(req: NextRequest) {
 
     const nextState = result.nextState;
     const sanitized = sanitizePublicGameState(nextState);
-    const nextExpiry = new Date(Date.now() + 25000).toISOString();
 
-    await supabase
-      .from('matches')
-      .update({
-        game_state: sanitized,
-        turn_expires_at: nextExpiry,
-      })
-      .eq('id', body.matchId);
+    const updatedHands = nextState.players.map((p) => ({
+      player_id: p.id,
+      cards: p.hand,
+      envido_points: p.envidoPoints,
+      has_flor: p.hasFlor,
+    }));
 
-    // Actualizar mano privada del jugador si cambió
-    const actorSeat = nextState.players.find((p) => p.id === user.id);
-    if (actorSeat) {
-      await supabase
-        .from('match_hands')
-        .update({ cards: actorSeat.hand, updated_at: new Date().toISOString() })
-        .eq('match_id', body.matchId)
-        .eq('player_id', user.id);
-    }
+    const { error: commitErr } = await supabase.rpc('server_commit_match_action', {
+      p_match_id: body.matchId,
+      p_game_state: sanitized,
+      p_hands: updatedHands,
+      p_winner_key: nextState.matchWinner ?? null,
+    });
 
-    // Liquidación automática de escrow al llegar a 30 puntos
-    if (nextState.matchWinner) {
-      await supabase.rpc('settle_match_escrow', {
-        p_match_id: body.matchId,
-        p_winner_key: nextState.matchWinner,
-      });
+    if (commitErr) {
+      return NextResponse.json({ error: commitErr.message }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true, state: sanitized });

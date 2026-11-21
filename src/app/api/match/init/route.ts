@@ -31,7 +31,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Mesa no encontrada.' }, { status: 404 });
     }
 
-    // Si ya fue inicializada por otro jugador de la mesa, devolver estado actual
     if (match.game_state && Object.keys(match.game_state).length > 0) {
       return NextResponse.json({ ok: true, state: match.game_state });
     }
@@ -65,31 +64,30 @@ export async function POST(req: NextRequest) {
       fillWithBots: false,
     });
 
-    // Guardar manos privadas en match_hands (RLS estricto)
-    for (const p of fullState.players) {
-      await supabase.from('match_hands').upsert(
-        {
-          match_id: matchId,
-          player_id: p.id,
-          seat_index: p.seatIndex,
-          cards: p.hand,
-          envido_points: p.envidoPoints,
-          has_flor: p.hasFlor,
-        },
-        { onConflict: 'match_id,player_id' }
-      );
-    }
+    const handsPayload = fullState.players.map((p) => ({
+      player_id: p.id,
+      seat_index: p.seatIndex,
+      cards: p.hand,
+      envido_points: p.envidoPoints,
+      has_flor: p.hasFlor,
+    }));
 
     const sanitized = sanitizePublicGameState(fullState);
-    await supabase
-      .from('matches')
-      .update({
-        game_state: sanitized,
-        turn_expires_at: new Date(Date.now() + 25000).toISOString(),
-      })
-      .eq('id', matchId);
 
-    return NextResponse.json({ ok: true, state: sanitized });
+    const { data: rpcRes, error: rpcErr } = await supabase.rpc('server_init_match_hands', {
+      p_match_id: matchId,
+      p_hands: handsPayload,
+      p_game_state: sanitized,
+    });
+
+    if (rpcErr) {
+      return NextResponse.json({ error: rpcErr.message }, { status: 400 });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      state: (rpcRes as { game_state?: unknown })?.game_state ?? sanitized,
+    });
   } catch (err: unknown) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Error inicializando mesa.' },
