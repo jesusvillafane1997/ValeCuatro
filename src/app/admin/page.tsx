@@ -50,10 +50,12 @@ export default function AdminGreenlightPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [currentEmail, setCurrentEmail] = useState('');
 
-  // Login state for operators visiting /admin directly
+  // Login / Sign-up state for operators visiting /admin directly
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [isSignUpMode, setIsSignUpMode] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginNotice, setLoginNotice] = useState<string | null>(null);
 
   const [rejectReason, setRejectReason] = useState<Record<string, string>>({});
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
@@ -217,7 +219,32 @@ export default function AdminGreenlightPage() {
   const handleOperatorLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
+    setLoginNotice(null);
     const supabase = createClient();
+
+    if (isSignUpMode) {
+      const { data, error } = await supabase.auth.signUp({
+        email: loginEmail,
+        password: loginPassword,
+        options: {
+          emailRedirectTo:
+            typeof window !== 'undefined' ? `${window.location.origin}/admin` : undefined,
+        },
+      });
+      if (error) {
+        setLoginError(error.message);
+        return;
+      }
+      if (data.user && !data.session) {
+        setLoginNotice(
+          '¡Cuenta creada! Confirmá tu email y pedile al administrador principal que habilite tu correo como operador.'
+        );
+        return;
+      }
+      await loadAllAdminData();
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithPassword({
       email: loginEmail,
       password: loginPassword,
@@ -412,9 +439,13 @@ export default function AdminGreenlightPage() {
           <div className="max-w-sm mx-auto rounded-3xl bg-[#164A34]/85 backdrop-blur-xl border border-[#C9A24B]/40 p-7 space-y-4 shadow-ambient">
             <div className="text-center space-y-1">
               <ShieldCheck className="w-9 h-9 text-[#F2D283] mx-auto" />
-              <h2 className="text-xl font-bold">Acceso Operadores</h2>
+              <h2 className="text-xl font-bold">
+                {isSignUpMode ? 'Crear Cuenta de Operador' : 'Acceso Operadores'}
+              </h2>
               <p className="text-xs text-[#9EB3A8]">
-                Ingresá con tu cuenta autorizada como administrador.
+                {isSignUpMode
+                  ? 'Registrate y luego pedile al administrador que habilite tu acceso.'
+                  : 'Ingresá con tu cuenta autorizada como administrador.'}
               </p>
             </div>
             <form onSubmit={handleOperatorLogin} className="space-y-3">
@@ -435,13 +466,27 @@ export default function AdminGreenlightPage() {
                 className="w-full px-4 py-3 rounded-2xl bg-white text-[#1A1D1B] text-sm outline-none"
               />
               {loginError && <p className="text-xs text-rose-200">{loginError}</p>}
+              {loginNotice && <p className="text-xs text-[#F2D283]">{loginNotice}</p>}
               <button
                 type="submit"
                 className="w-full py-3 rounded-full bg-gradient-to-r from-[#D9B35F] to-[#F2D283] text-[#0E3324] font-bold text-sm"
               >
-                Ingresar al Panel
+                {isSignUpMode ? 'Crear Cuenta' : 'Ingresar al Panel'}
               </button>
             </form>
+            <button
+              type="button"
+              onClick={() => {
+                setIsSignUpMode((v) => !v);
+                setLoginError(null);
+                setLoginNotice(null);
+              }}
+              className="w-full text-center text-xs text-[#F2D283] hover:underline font-medium"
+            >
+              {isSignUpMode
+                ? '¿Ya tenés cuenta? Iniciar sesión'
+                : '¿Nuevo operador? Crear cuenta'}
+            </button>
           </div>
         ) : !isAdmin ? (
           <div className="rounded-3xl bg-[#164A34]/80 border border-white/[0.1] p-10 text-center space-y-3 shadow-ambient">
