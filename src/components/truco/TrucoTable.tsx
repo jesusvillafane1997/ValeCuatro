@@ -486,10 +486,6 @@ export function TrucoTable({
                 })}
               </div>
 
-              <p className="text-xs text-[#F2D283] bg-[#164A34]/80 border border-white/10 px-4 py-2 rounded-full">
-                Tip: Abrí otra pestaña en <strong>http://localhost:3030</strong> y unite al mismo modo para jugar en vivo.
-              </p>
-
               <button
                 onClick={handleLeave}
                 className="px-6 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-xs font-semibold text-white transition"
